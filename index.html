@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shotyn - Minimal Screenshot Editor</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='3' y='3' width='12' height='12' rx='2' fill='none' stroke='%2309090b' stroke-width='2.5'/><rect x='9' y='9' width='12' height='12' rx='2' fill='none' stroke='%2309090b' stroke-width='2.5'/></svg>">
+    <style>
+        /* Dark Mode by Default */
+        :root {
+            --bg-color: #09090b;
+            --panel-bg: #18181b;
+            --text-main: #f4f4f5;
+            --text-muted: #a1a1aa;
+            --border: #27272a;
+            --accent: #fafafa;
+            --accent-text: #09090b;
+            --btn-hover: #e4e4e7;
+        }
+
+        /* Light Mode Variables */
+        body.light-mode {
+            --bg-color: #f4f4f5;
+            --panel-bg: #ffffff;
+            --text-main: #09090b;
+            --text-muted: #71717a;
+            --border: #e4e4e7;
+            --accent: #09090b;
+            --accent-text: #fafafa;
+            --btn-hover: #27272a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Sidebar Controls */
+        .sidebar {
+            width: 380px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border);
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            transition: background-color 0.3s, border-color 0.3s;
+            z-index: 10;
+        }
+
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        .header-row { display: flex; justify-content: space-between; align-items: center; }
+        
+        .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; letter-spacing: -0.5px; }
+        .brand svg { width: 24px; height: 24px; stroke: var(--text-main); fill: none; stroke-width: 2.5; }
+
+        .control-group { display: flex; flex-direction: column; gap: 12px; }
+        .control-group h3 {
+            font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+            color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 8px;
+        }
+
+        .control-item { display: flex; flex-direction: column; gap: 6px; }
+        .control-item-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .slider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        label { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+        
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: var(--accent); }
+        input[type="color"] { width: 32px; height: 32px; padding: 0; border: none; border-radius: 4px; cursor: pointer; background: transparent; flex-shrink: 0; }
+        input[type="text"], textarea, select {
+            width: 100%; padding: 8px; border: 1px solid var(--border);
+            border-radius: 6px; font-size: 13px; outline: none;
+            background: var(--bg-color); color: var(--text-main);
+            transition: border-color 0.2s;
+        }
+        textarea { resize: vertical; min-height: 60px; }
+        input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+
+        /* Buttons */
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: auto; padding-top: 10px; }
+        .btn {
+            background: var(--panel-bg); border: 1px solid var(--border);
+            padding: 10px 12px; border-radius: 6px; font-size: 13px;
+            font-weight: 500; cursor: pointer; transition: all 0.2s;
+            text-align: center; width: 100%; color: var(--text-main);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn:hover { border-color: var(--text-main); }
+        .btn-primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+        .btn-primary:hover { background: var(--btn-hover); border-color: var(--btn-hover); }
+        .btn-small { padding: 6px 10px; font-size: 12px; width: auto; }
+
+        /* Footer */
+        .footer {
+            margin-top: 12px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .footer .brand-small {
+            display: flex; align-items: center; gap: 4px; font-weight: 600; color: var(--text-main);
+        }
+        .footer svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.5; }
+        .heart { color: #ef4444; }
+
+        input[type="file"] { display: none; }
+
+        svg.icon { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+        /* Canvas Area & Drag/Drop */
+        .main-area {
+            flex: 1; display: flex; justify-content: center; align-items: center;
+            padding: 40px; overflow: hidden;
+            background-image: radial-gradient(var(--border) 1px, transparent 1px);
+            background-size: 20px 20px;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+        .main-area.drag-over { background-color: rgba(161, 161, 170, 0.1); }
+
+        canvas {
+            max-width: 100%; max-height: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            cursor: grab;
+            touch-action: none; /* Prevents whole-page scrolling when dragging text on mobile */
+        }
+        canvas:active { cursor: grabbing; }
+
+        /* Responsive Mobile & Tablet Layout */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column-reverse; /* Puts controls at bottom, canvas at top */
+            }
+            .sidebar {
+                width: 100%;
+                flex: 1; /* Takes remaining space for scrolling */
+                border-right: none;
+                border-top: 1px solid var(--border);
+                padding: 16px;
+            }
+            .main-area {
+                height: 45vh; /* Gives the canvas the top 45% of the screen */
+                flex: none;
+                padding: 16px;
+            }
+            .btn-group {
+                padding-bottom: 24px; /* Extra padding for modern phones with bottom bars */
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="header-row">
+            <div class="brand">
+                <svg viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="12" height="12" rx="2"></rect>
+                    <rect x="9" y="9" width="12" height="12" rx="2"></rect>
+                </svg>
+                Shotyn
+            </div>
+            <button class="btn btn-small" id="themeToggle" title="Toggle Theme">
+                <svg class="icon sun-icon" style="display: none;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <svg class="icon moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+        </div>
+
+        <div class="control-group">
+            <label class="btn btn-primary" for="imageUpload">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                Upload Image
+            </label>
+            <input type="file" id="imageUpload" accept="image/*">
+        </div>
+
+        <div class="control-group">
+            <h3>Canvas & Frame</h3>
+            <div class="control-item-row">
+                <select id="bgType" style="width: 45%;">
+                    <option value="solid">Solid</option>
+                    <option value="gradient" selected>Gradient</option>
+                </select>
+                <select id="aspectRatio" style="flex: 1;">
+                    <option value="auto">Auto (Wrap Image)</option>
+                    <option value="16:9">16:9 (Widescreen)</option>
+                    <option value="4:3">4:3 (Classic)</option>
+                    <option value="1:1">1:1 (Square)</option>
+                </select>
+            </div>
+            <div class="control-item-row">
+                <label>Colors:</label>
+                <input type="color" id="bgColor1" value="#3f3f46">
+                <input type="color" id="bgColor2" value="#18181b">
+            </div>
+            <div class="slider-grid">
+                <div class="control-item"><label>Padding</label><input type="range" id="padding" min="0" max="200" value="60"></div>
+                <div class="control-item"><label>Roundness</label><input type="range" id="borderRadius" min="0" max="100" value="16"></div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Image Shadows</h3>
+            <div class="slider-grid">
+                <div class="control-item"><label>Scale (%)</label><input type="range" id="imageScale" min="10" max="200" value="100"></div>
+                <div class="control-item"><label>Blur Amount</label><input type="range" id="imgShadowBlur" min="0" max="100" value="40"></div>
+                <div class="control-item"><label>Shadow X</label><input type="range" id="imgShadowX" min="-50" max="50" value="0"></div>
+                <div class="control-item"><label>Shadow Y</label><input type="range" id="imgShadowY" min="-50" max="50" value="20"></div>
+            </div>
+            <div class="control-item-row"><label>Shadow Color</label><input type="color" id="imgShadowColor" value="#000000"></div>
+        </div>
+
+        <div class="control-group">
+            <h3>Crop Area</h3>
+            <div class="slider-grid">
+                <div class="control-item"><label>Top</label><input type="range" id="cropTop" min="0" max="500" value="0"></div>
+                <div class="control-item"><label>Bottom</label><input type="range" id="cropBottom" min="0" max="500" value="0"></div>
+                <div class="control-item"><label>Left</label><input type="range" id="cropLeft" min="0" max="500" value="0"></div>
+                <div class="control-item"><label>Right</label><input type="range" id="cropRight" min="0" max="500" value="0"></div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Text Overlay</h3>
+            <div class="control-item">
+                <textarea id="textInput" placeholder="Type here. Drag text on canvas..."></textarea>
+            </div>
+            
+            <div class="control-item-row">
+                <select id="textFont" style="flex: 1;">
+                    <option value="-apple-system, BlinkMacSystemFont, sans-serif">System Default</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Courier New', monospace">Courier</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="Impact, sans-serif">Impact</option>
+                </select>
+                <input type="color" id="textColor" value="#ffffff">
+            </div>
+
+            <div class="control-item-row">
+                <select id="textAlign" style="flex: 1;">
+                    <option value="left">Left Align</option>
+                    <option value="center" selected>Center Align</option>
+                    <option value="right">Right Align</option>
+                </select>
+                <select id="textStyle" style="width: 80px;">
+                    <option value="normal">Normal</option>
+                    <option value="bold" selected>Bold</option>
+                    <option value="italic">Italic</option>
+                </select>
+            </div>
+
+            <div class="slider-grid">
+                <div class="control-item"><label>Size</label><input type="range" id="textSize" min="10" max="200" value="48"></div>
+                <div class="control-item"><label>Stroke Size</label><input type="range" id="textStrokeWidth" min="0" max="20" value="0"></div>
+            </div>
+            
+            <div class="slider-grid">
+                <div class="control-item"><label>Text Shadow X</label><input type="range" id="textShadowX" min="-50" max="50" value="0"></div>
+                <div class="control-item"><label>Text Shadow Y</label><input type="range" id="textShadowY" min="-50" max="50" value="4"></div>
+                <div class="control-item"><label>Shadow Blur</label><input type="range" id="textShadowBlur" min="0" max="50" value="10"></div>
+                <div class="control-item-row"><label>Stroke/Shadow</label><input type="color" id="textStrokeColor" value="#000000"></div>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn" id="copyBtn" title="Copy directly to clipboard">
+                <svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Copy Image
+            </button>
+            <button class="btn btn-primary" id="downloadBtn">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Save
+            </button>
+        </div>
+
+        <div class="footer">
+            <div class="brand-small">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12" rx="2"></rect><rect x="9" y="9" width="12" height="12" rx="2"></rect></svg>
+                Shotyn © <span id="year"></span>
+            </div>
+            <div>Made with <span class="heart">❤</span> by Ankan Debbarma</div>
+        </div>
+    </div>
+
+    <div class="main-area" id="dropZone">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        document.getElementById('year').innerText = new Date().getFullYear();
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const dropZone = document.getElementById('dropZone');
+        let img = new Image();
+
+        let textX = 0, textY = 0;
+        let isDraggingText = false, isTextInitialized = false;
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const sunIcon = document.querySelector('.sun-icon');
+        const moonIcon = document.querySelector('.moon-icon');
+
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('light-mode');
+            const isLight = document.body.classList.contains('light-mode');
+            sunIcon.style.display = isLight ? 'none' : 'block';
+            moonIcon.style.display = isLight ? 'block' : 'none';
+            draw(); 
+        });
+
+        // Initialize inputs
+        const inputs = [
+            'bgType', 'bgColor1', 'bgColor2', 'aspectRatio', 'padding', 'borderRadius', 
+            'imageScale', 'imgShadowBlur', 'imgShadowX', 'imgShadowY', 'imgShadowColor',
+            'cropTop', 'cropBottom', 'cropLeft', 'cropRight',
+            'textInput', 'textColor', 'textFont', 'textStyle', 'textAlign', 'textSize',
+            'textStrokeWidth', 'textStrokeColor', 'textShadowX', 'textShadowY', 'textShadowBlur'
+        ].reduce((acc, id) => {
+            acc[id] = document.getElementById(id);
+            acc[id].addEventListener('input', draw);
+            return acc;
+        }, {});
+
+        // Handle File Upload
+        function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                img.onload = () => {
+                    inputs.cropTop.max = img.height - 10;
+                    inputs.cropBottom.max = img.height - 10;
+                    inputs.cropLeft.max = img.width - 10;
+                    inputs.cropRight.max = img.width - 10;
+                    
+                    inputs.cropTop.value = 0; inputs.cropBottom.value = 0;
+                    inputs.cropLeft.value = 0; inputs.cropRight.value = 0;
+                    inputs.imageScale.value = 100;
+                    
+                    isTextInitialized = false; 
+                    draw();
+                };
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        document.getElementById('imageUpload').addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        // Drag and Drop
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+
+        // Keyboard Shortcut
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
+                e.preventDefault(); document.getElementById('imageUpload').click();
+            }
+        });
+
+        // Universal Input Position Tracker (Mouse + Touch)
+        function updatePointerPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            // Check if touch event or mouse event
+            const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+
+            textX = (clientX - rect.left) * scaleX;
+            textY = (clientY - rect.top) * scaleY;
+        }
+
+        // --- Mouse Events ---
+        canvas.addEventListener('mousedown', (e) => {
+            if (!inputs.textInput.value || !img.src) return;
+            isDraggingText = true; updatePointerPos(e); draw();
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (isDraggingText) { updatePointerPos(e); draw(); }
+        });
+        window.addEventListener('mouseup', () => isDraggingText = false);
+
+        // --- Touch Events (Mobile Support) ---
+        canvas.addEventListener('touchstart', (e) => {
+            if (!inputs.textInput.value || !img.src) return;
+            isDraggingText = true; 
+            updatePointerPos(e); 
+            draw();
+        }, { passive: false });
+        
+        window.addEventListener('touchmove', (e) => {
+            if (isDraggingText) { 
+                e.preventDefault(); // Prevents screen from scrolling while dragging text
+                updatePointerPos(e); 
+                draw(); 
+            }
+        }, { passive: false });
+        
+        window.addEventListener('touchend', () => isDraggingText = false);
+
+        // Handle Window Resizing (updates the placeholder instructions dynamically)
+        window.addEventListener('resize', () => { if(!img.src) draw(); });
+
+        // Main Draw Loop
+        function draw() {
+            if (!img.src) {
+                canvas.width = 800; canvas.height = 500;
+                ctx.fillStyle = document.body.classList.contains('light-mode') ? '#ffffff' : '#18181b';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = document.body.classList.contains('light-mode') ? '#e4e4e7' : '#27272a';
+                ctx.lineWidth = 2; ctx.setLineDash([10, 10]);
+                ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = document.body.classList.contains('light-mode') ? '#71717a' : '#a1a1aa';
+                ctx.font = '500 20px -apple-system, sans-serif';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                
+                // Dynamic instruction text based on screen size
+                const isMobile = window.innerWidth <= 768;
+                const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                const instructionText = isMobile 
+                    ? "Tap 'Upload Image' to begin" 
+                    : `Drop an image here, or press ${isMac ? 'Cmd' : 'Ctrl'} + U`;
+                
+                ctx.fillText(instructionText, canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            // Crop & Scale
+            const ct = parseInt(inputs.cropTop.value), cb = parseInt(inputs.cropBottom.value);
+            const cl = parseInt(inputs.cropLeft.value), cr = parseInt(inputs.cropRight.value);
+            const sx = cl, sy = ct;
+            const sourceW = Math.max(10, img.width - cl - cr);
+            const sourceH = Math.max(10, img.height - ct - cb);
+
+            const scale = parseInt(inputs.imageScale.value) / 100;
+            const sw = sourceW * scale;
+            const sh = sourceH * scale;
+
+            // Target Dimensions (Aspect Ratio Logic)
+            const pad = parseInt(inputs.padding.value);
+            let targetW = sw + (pad * 2);
+            let targetH = sh + (pad * 2);
+
+            const ratioMap = { '16:9': 16/9, '4:3': 4/3, '1:1': 1 };
+            if (inputs.aspectRatio.value !== 'auto') {
+                const requiredRatio = ratioMap[inputs.aspectRatio.value];
+                const currentRatio = targetW / targetH;
+                if (currentRatio < requiredRatio) {
+                    targetW = targetH * requiredRatio;
+                } else if (currentRatio > requiredRatio) {
+                    targetH = targetW / requiredRatio;
+                }
+            }
+
+            canvas.width = targetW;
+            canvas.height = targetH;
+
+            if (!isTextInitialized) {
+                textX = canvas.width / 2; textY = pad / 2 + 20;
+                isTextInitialized = true;
+            }
+
+            // Draw Background
+            if (inputs.bgType.value === 'gradient') {
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, inputs.bgColor1.value);
+                gradient.addColorStop(1, inputs.bgColor2.value);
+                ctx.fillStyle = gradient;
+            } else {
+                ctx.fillStyle = inputs.bgColor1.value;
+            }
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Center Image inside the calculated Aspect Ratio canvas
+            const imgPosX = (targetW - sw) / 2;
+            const imgPosY = (targetH - sh) / 2;
+            const radius = Math.min(parseInt(inputs.borderRadius.value), sw/2, sh/2);
+
+            // Draw Image Shadow & Rounding
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(imgPosX + radius, imgPosY);
+            ctx.lineTo(imgPosX + sw - radius, imgPosY);
+            ctx.quadraticCurveTo(imgPosX + sw, imgPosY, imgPosX + sw, imgPosY + radius);
+            ctx.lineTo(imgPosX + sw, imgPosY + sh - radius);
+            ctx.quadraticCurveTo(imgPosX + sw, imgPosY + sh, imgPosX + sw - radius, imgPosY + sh);
+            ctx.lineTo(imgPosX + radius, imgPosY + sh);
+            ctx.quadraticCurveTo(imgPosX, imgPosY + sh, imgPosX, imgPosY + sh - radius);
+            ctx.lineTo(imgPosX, imgPosY + radius);
+            ctx.quadraticCurveTo(imgPosX, imgPosY, imgPosX + radius, imgPosY);
+            ctx.closePath();
+
+            // Image Shadow
+            ctx.shadowColor = inputs.imgShadowColor.value;
+            ctx.shadowBlur = parseInt(inputs.imgShadowBlur.value);
+            ctx.shadowOffsetX = parseInt(inputs.imgShadowX.value);
+            ctx.shadowOffsetY = parseInt(inputs.imgShadowY.value);
+            ctx.fillStyle = 'white';
+            ctx.fill(); 
+            ctx.shadowColor = 'transparent'; 
+            ctx.shadowOffsetX = 0; // Reset X
+
+            ctx.clip(); 
+            ctx.drawImage(img, sx, sy, sourceW, sourceH, imgPosX, imgPosY, sw, sh);
+            ctx.restore();
+
+            // Text Rendering
+            if (inputs.textInput.value) {
+                const lines = inputs.textInput.value.split('\n');
+                const size = parseInt(inputs.textSize.value);
+                
+                ctx.font = `${inputs.textStyle.value === 'normal' ? '' : inputs.textStyle.value} ${size}px ${inputs.textFont.value}`;
+                ctx.textAlign = inputs.textAlign.value;
+                ctx.textBaseline = 'middle';
+                
+                const strokeWidth = parseInt(inputs.textStrokeWidth.value);
+                ctx.lineWidth = strokeWidth;
+                ctx.strokeStyle = inputs.textStrokeColor.value;
+                ctx.fillStyle = inputs.textColor.value;
+
+                ctx.shadowColor = inputs.textStrokeColor.value; 
+                ctx.shadowBlur = parseInt(inputs.textShadowBlur.value);
+                ctx.shadowOffsetX = parseInt(inputs.textShadowX.value);
+                ctx.shadowOffsetY = parseInt(inputs.textShadowY.value);
+
+                const lineHeight = size * 1.2;
+                const startY = textY - ((lines.length - 1) * lineHeight) / 2;
+
+                lines.forEach((line, index) => {
+                    const currentY = startY + (index * lineHeight);
+                    if (strokeWidth > 0) ctx.strokeText(line, textX, currentY);
+                    ctx.fillText(line, textX, currentY);
+                });
+                ctx.shadowColor = 'transparent'; 
+                ctx.shadowOffsetX = 0;
+            }
+        }
+        draw();
+
+        // Download Action
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if (!img.src) return alert('Please upload an image first.');
+            const link = document.createElement('a');
+            link.download = 'Shotyn-Render.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
+        // Copy to Clipboard Action
+        document.getElementById('copyBtn').addEventListener('click', async () => {
+            if (!img.src) return alert('Please upload an image first.');
+            const btn = document.getElementById('copyBtn');
+            const originalHTML = btn.innerHTML;
+            
+            try {
+                canvas.toBlob(async (blob) => {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    btn.innerHTML = `<svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
+                    btn.style.borderColor = "#10b981"; btn.style.color = "#10b981";
+                    setTimeout(() => { btn.innerHTML = originalHTML; btn.style.borderColor = ""; btn.style.color = ""; }, 2000);
+                });
+            } catch (err) {
+                alert('Copy failed. Your browser might block clipboard access for local files.');
+            }
+        });
+    </script>
+</body>
+</html>
